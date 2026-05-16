@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>帝国OS状态监控面板</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ========================================
+       CSS Variables - 帝国OS配色方案
+       ======================================== */
+    :root {
+      /* 帝国绿（主色）*/
+      --empire-green: #00ff88;
+      --empire-green-dim: rgba(0, 255, 136, 0.2);
+      --empire-green-glow: rgba(0, 255, 136, 0.5);
+      
+      /* 科技蓝（辅助）*/
+      --tech-blue: #00b4ff;
+      --tech-blue-dim: rgba(0, 180, 255, 0.2);
+      --tech-blue-glow: rgba(0, 180, 255, 0.5);
+      
+      /* 状态色 */
+      --status-green: #00ff88;
+      --status-yellow: #ffd93d;
+      --status-red: #ff6b6b;
+      --status-gray: #6b7280;
+      
+      /* 背景色 */
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #111118;
+      --bg-card: #1a1a24;
+      --bg-card-hover: #252532;
+      --bg-card-border: rgba(255, 255, 255, 0.05);
+      
+      /* 文字色 */
+      --text-primary: #ffffff;
+      --text-secondary: #9ca3af;
+      --text-dim: #6b7280;
+      
+      /* 字体 */
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      
+      /* 间距 */
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+      
+      /* 圆角 */
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      
+      /* 动画时长 */
+      --transition-fast: 0.2s;
+      --transition-normal: 0.3s;
+    }
+
+    /* ========================================
+       Reset & Base Styles
+       ======================================== */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ========================================
+       Utility Classes
+       ======================================== */
+    .text-green { color: var(--status-green); }
+    .text-yellow { color: var(--status-yellow); }
+    .text-red { color: var(--status-red); }
+    .text-blue { color: var(--tech-blue); }
+    .text-dim { color: var(--text-dim); }
+    .text-secondary { color: var(--text-secondary); }
+    
+    .font-mono { font-family: var(--font-mono); }
+
+    /* ========================================
+       Animations - 脉冲效果
+       ======================================== */
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 8px currentColor;
+      }
+      50% {
+        opacity: 0.6;
+        box-shadow: 0 0 16px currentColor;
+      }
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% {
+        box-shadow: 0 0 5px var(--status-green), 0 0 10px var(--empire-green-dim);
+      }
+      50% {
+        box-shadow: 0 0 15px var(--status-green), 0 0 30px var(--empire-green-dim);
+      }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes scan-line {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100vh); }
+    }
+
+    /* 脉冲状态灯 */
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .status-dot.active {
+      background: var(--status-green);
+      color: var(--status-green);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .status-dot.warning {
+      background: var(--status-yellow);
+      color: var(--status-yellow);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    .status-dot.error {
+      background: var(--status-red);
+      color: var(--status-red);
+      animation: pulse 0.8s ease-in-out infinite;
+    }
+
+    .status-dot.offline {
+      background: var(--status-gray);
+      color: var(--status-gray);
+    }
+
+    /* 脉冲光晕效果 */
+    .pulse-glow {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+
+    /* ========================================
+       Dashboard Container
+       ======================================== */
+    .dashboard {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--spacing-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-lg);
+    }
+
+    /* ========================================
+       Header - 面板头部
+       ======================================== */
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-lg);
+      background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+      border: 1px solid var(--bg-card-border);
+      border-radius: var(--radius-lg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 扫描线效果 */
+    .dashboard-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--empire-green), transparent);
+      animation: scan-line 3s linear infinite;
+      opacity: 0.5;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+    }
+
+    .header-title {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+    }
+
+    .header-title .icon {
+      font-size: 1.8rem;
+    }
+
+    .header-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .header-right {
+      display: flex;
+      gap: var(--spacing-sm);
+    }
+
+    .header-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      color: var(--text-secondary);
+      padding: var(--spacing-sm) var(--spacing-md);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      font-family: var(--font-sans);
+    }
+
+    .header-btn:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+      border-color: var(--empire-green-dim);
+    }
+
+    .header-btn.primary {
+      background: var(--empire-green-dim);
+      border-color: var(--empire-green);
+      color: var(--empire-green);
+    }
+
+    .header-btn.primary:hover {
+      background: var(--empire-green);
+      color: var(--bg-primary);
+    }
+
+    /* ========================================
+       Metrics Row - 核心指标卡片
+       ======================================== */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: var(--spacing-md);
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+      transition: all var(--transition-normal);
+      animation: fade-in 0.5s ease-out forwards;
+      opacity: 0;
+    }
+
+    .metric-card:nth-child(1) { animation-delay: 0.1s; }
+    .metric-card:nth-child(2) { animation-delay: 0.2s; }
+    .metric-card:nth-child(3) { animation-delay: 0.3s; }
+    .metric-card:nth-child(4) { animation-delay: 0.4s; }
+    .metric-card:nth-child(5) { animation-delay: 0.5s; }
+
+    .metric-card:hover {
+      transform: translateY(-3px);
+      background: var(--bg-card-hover);
+      border-color: var(--empire-green-dim);
+    }
+
+    .metric-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .metric-label {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+    }
+
+    .metric-value {
+      font-family: var(--font-mono);
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .metric-card .metric-value.green { color: var(--empire-green); }
+    .metric-card .metric-value.blue { color: var(--tech-blue); }
+
+    .metric-sub {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    /* ========================================
+       Section Title
+       ======================================== */
+    .section-title {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-md);
+    }
+
+    .section-title .icon {
+      font-size: 1.2rem;
+    }
+
+    /* ========================================
+       Layers Section - 六层架构状态
+       ======================================== */
+    .layers-section {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .layers-header {
+      padding: var(--spacing-lg);
+      background: linear-gradient(90deg, var(--empire-green-dim), transparent);
+      border-bottom: 1px solid var(--bg-card-border);
+    }
+
+    .layers-grid {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 单个层级卡片 */
+    .layer-card {
+      padding: var(--spacing-lg);
+      border-bottom: 1px solid var(--bg-card-border);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: var(--spacing-lg);
+      align-items: center;
+      transition: background var(--transition-fast);
+    }
+
+    .layer-card:last-child {
+      border-bottom: none;
+    }
+
+    .layer-card:hover {
+      background: var(--bg-card-hover);
+    }
+
+    /* 层级图标 */
+    .layer-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-card-border);
+    }
+
+    .layer-card:nth-child(1) .layer-icon { border-color: var(--empire-green-dim); }
+    .layer-card:nth-child(2) .layer-icon { border-color: var(--tech-blue-dim); }
+    .layer-card:nth-child(3) .layer-icon { border-color: var(--status-yellow); }
+    .layer-card:nth-child(4) .layer-icon { border-color: var(--tech-blue-dim); }
+    .layer-card:nth-child(5) .layer-icon { border-color: var(--empire-green-dim); }
+    .layer-card:nth-child(6) .layer-icon { border-color: var(--tech-blue-dim); }
+
+    /* 层级信息 */
+    .layer-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    .layer-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+    }
+
+    .layer-name-en {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+
+    .layer-details {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-xs);
+    }
+
+    .layer-tag {
+      background: var(--bg-secondary);
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    /* 层级状态 */
+    .layer-status {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+    }
+
+    .layer-status-text {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    /* Agent专属样式 */
+    .agent-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+      margin-top: var(--spacing-xs);
+    }
+
+    .agent-item {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .agent-badge {
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .agent-badge.qclaw {
+      background: rgba(255, 107, 107, 0.2);
+      color: #ff6b6b;
+    }
+
+    .agent-badge.trae {
+      background: rgba(0, 180, 255, 0.2);
+      color: var(--tech-blue);
+    }
+
+    /* ========================================
+       Activity Section - 近期活动
+       ======================================== */
+    .activity-section {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .activity-header {
+      padding: var(--spacing-lg);
+      background: linear-gradient(90deg, var(--tech-blue-dim), transparent);
+      border-bottom: 1px solid var(--bg-card-border);
+    }
+
+    .activity-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .activity-item {
+      padding: var(--spacing-md) var(--spacing-lg);
+      border-bottom: 1px solid var(--bg-card-border);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      transition: background var(--transition-fast);
+      animation: fade-in 0.5s ease-out forwards;
+      opacity: 0;
+    }
+
+    .activity-item:nth-child(1) { animation-delay: 0.1s; }
+    .activity-item:nth-child(2) { animation-delay: 0.2s; }
+    .activity-item:nth-child(3) { animation-delay: 0.3s; }
+    .activity-item:nth-child(4) { animation-delay: 0.4s; }
+    .activity-item:nth-child(5) { animation-delay: 0.5s; }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-item:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .activity-time {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      min-width: 50px;
+    }
+
+    .activity-badge {
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 600;
+      min-width: 45px;
+      text-align: center;
+    }
+
+    .activity-badge.qclaw {
+      background: rgba(255, 107, 107, 0.2);
+      color: #ff6b6b;
+    }
+
+    .activity-badge.trae {
+      background: rgba(0, 180, 255, 0.2);
+      color: var(--tech-blue);
+    }
+
+    .activity-badge.kernel {
+      background: var(--empire-green-dim);
+      color: var(--empire-green);
+    }
+
+    .activity-badge.strategic {
+      background: var(--tech-blue-dim);
+      color: var(--tech-blue);
+    }
+
+    .activity-content {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    /* ========================================
+       Reminders Section - 需要关注
+       ======================================== */
+    .reminders-section {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .reminders-header {
+      padding: var(--spacing-lg);
+      background: linear-gradient(90deg, rgba(255, 217, 61, 0.1), transparent);
+      border-bottom: 1px solid var(--bg-card-border);
+    }
+
+    .reminders-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .reminder-item {
+      padding: var(--spacing-md) var(--spacing-lg);
+      border-bottom: 1px solid var(--bg-card-border);
+      display: flex;
+      align-items: flex-start;
+      gap: var(--spacing-md);
+      transition: background var(--transition-fast);
+    }
+
+    .reminder-item:last-child {
+      border-bottom: none;
+    }
+
+    .reminder-item:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .reminder-icon {
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .reminder-text {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* ========================================
+       Footer
+       ======================================== */
+    .dashboard-footer {
+      text-align: center;
+      padding: var(--spacing-lg);
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+
+    .dashboard-footer span {
+      color: var(--empire-green);
+    }
+
+    /* ========================================
+       Responsive Design - 响应式布局
+       ======================================== */
+    
+    /* 手机端 */
+    @media (max-width: 768px) {
+      .dashboard {
+        padding: var(--spacing-sm);
+      }
+
+      .dashboard-header {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        text-align: center;
+      }
+
+      .header-title {
+        font-size: 1.2rem;
+      }
+
+      .header-right {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .metrics-row {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-sm);
+      }
+
+      .metric-card {
+        padding: var(--spacing-md);
+      }
+
+      .metric-value {
+        font-size: 1.4rem;
+      }
+
+      .layer-card {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+      }
+
+      .layer-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+      }
+
+      .layer-status {
+        justify-content: flex-start;
+      }
+
+      .section-title {
+        font-size: 0.9rem;
+      }
+    }
+
+    /* 平板端 */
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .metrics-row {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    /* 电脑端 - 已有最大宽度设置 */
+    @media (min-width: 1025px) {
+      .metrics-row {
+        grid-template-columns: repeat(5, 1fr);
+      }
+    }
+
+    /* ========================================
+       特殊效果 - 光晕动画
+       ======================================== */
+    .glow-border {
+      position: relative;
+    }
+
+    .glow-border::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      background: linear-gradient(135deg, var(--empire-green), var(--tech-blue));
+      z-index: -1;
+      opacity: 0;
+      transition: opacity var(--transition-normal);
+    }
+
+    .glow-border:hover::after {
+      opacity: 0.5;
+    }
+
+    /* 状态指示器动画 */
+    .indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+
+    .indicator.green {
+      background: var(--status-green);
+      box-shadow: 0 0 10px var(--empire-green-glow);
+    }
+
+    .indicator.blue {
+      background: var(--tech-blue);
+      box-shadow: 0 0 10px var(--tech-blue-glow);
+    }
+  </style>
+</head>
+<body>
+  <!-- 主面板容器 -->
+  <div class="dashboard">
+    
+    <!-- ===== 头部 ===== -->
+    <header class="dashboard-header">
+      <div class="header-left">
+        <h1 class="header-title">
+          <span class="icon">🎛️</span>
+          帝国OS状态监控面板
+        </h1>
+        <span class="header-subtitle">v4.0 | Meta Kernel Dashboard</span>
+      </div>
+      <div class="header-right">
+        <button class="header-btn primary" onclick="refreshData()">
+          🔄 刷新
+        </button>
+        <button class="header-btn" onclick="toggleSettings()">
+          ⚙️ 设置
+        </button>
+        <button class="header-btn" onclick="showHelp()">
+          ❓ 帮助
+        </button>
+      </div>
+    </header>
+
+    <!-- ===== 核心指标行 ===== -->
+    <section class="metrics-row">
+      <div class="metric-card glow-border">
+        <div class="metric-header">
+          <span class="metric-label">🟢 运行中</span>
+          <span class="status-dot active"></span>
+        </div>
+        <div class="metric-value green">100%</div>
+        <div class="metric-sub">系统可用率</div>
+      </div>
+
+      <div class="metric-card glow-border">
+        <div class="metric-header">
+          <span class="metric-label">📋 任务</span>
+        </div>
+        <div class="metric-value">5/12</div>
+        <div class="metric-sub">执行中/总数</div>
+      </div>
+
+      <div class="metric-card glow-border">
+        <div class="metric-header">
+          <span class="metric-label">🤖 Agent</span>
+        </div>
+        <div class="metric-value blue">2/2</div>
+        <div class="metric-sub">在线/总数</div>
+      </div>
+
+      <div class="metric-card glow-border">
+        <div class="metric-header">
+          <span class="metric-label">⚡ 响应</span>
+        </div>
+        <div class="metric-value">120<span style="font-size: 1rem;">ms</span></div>
+        <div class="metric-sub">平均响应时间</div>
+      </div>
+
+      <div class="metric-card glow-border">
+        <div class="metric-header">
+          <span class="metric-label">🧠 思维</span>
+        </div>
+        <div class="metric-value green">L2/L3</div>
+        <div class="metric-sub">当前模式</div>
+      </div>
+    </section>
+
+    <!-- ===== 六层架构状态 ===== -->
+    <section class="layers-section">
+      <div class="layers-header">
+        <h2 class="section-title">
+          <span class="icon">🏗️</span>
+          六层架构状态
+        </h2>
+      </div>
+
+      <div class="layers-grid" id="layers-grid">
+        <!-- 层级数据由JS动态渲染 -->
+      </div>
+    </section>
+
+    <!-- ===== 近期活动 ===== -->
+    <section class="activity-section">
+      <div class="activity-header">
+        <h2 class="section-title">
+          <span class="icon">📋</span>
+          近期活动
+        </h2>
+      </div>
+
+      <div class="activity-list" id="activity-list">
+        <!-- 活动数据由JS动态渲染 -->
+      </div>
+    </section>
+
+    <!-- ===== 需要关注 ===== -->
+    <section class="reminders-section">
+      <div class="reminders-header">
+        <h2 class="section-title">
+          <span class="icon">⚠️</span>
+          需要关注
+        </h2>
+      </div>
+
+      <div class="reminders-list" id="reminders-list">
+        <!-- 提醒数据由JS动态渲染 -->
+      </div>
+    </section>
+
+    <!-- ===== 页脚 ===== -->
+    <footer class="dashboard-footer">
+      <span>帝国OS</span> 状态监控面板 | 最后更新: <span id="last-update">--:--:--</span>
+    </footer>
+  </div>
+
+  <script>
+    /* ========================================
+       模拟数据 - Mock Data
+       ======================================== */
+    
+    // 六层架构数据
+    const layersData = [
+      {
+        icon: '👤',
+        name: 'Commander',
+        nameEn: '统帅层',
+        status: 'active',
+        statusText: '待机中',
+        details: [],
+        badge: null
+      },
+      {
+        icon: '🧭',
+        name: 'Strategic Layer',
+        nameEn: '战略层',
+        status: 'active',
+        statusText: '心跳正常',
+        details: [
+          { label: 'L3愿景', value: '3个' },
+          { label: 'L2项目', value: '5个' },
+          { label: 'L1任务', value: '12个' }
+        ],
+        badge: null
+      },
+      {
+        icon: '👑',
+        name: 'Meta Kernel',
+        nameEn: '认知内核',
+        status: 'active',
+        statusText: '决策就绪',
+        details: [
+          { label: '当前模式', value: 'L2/L3' },
+          { label: '今日决策', value: '5次' }
+        ],
+        badge: null
+      },
+      {
+        icon: '🧠',
+        name: 'Cognitive Layer',
+        nameEn: '认知层',
+        status: 'active',
+        statusText: '模型活跃',
+        details: [
+          { label: '世界模型', value: 'v0.3' },
+          { label: '模拟引擎', value: '空闲' }
+        ],
+        badge: null
+      },
+      {
+        icon: '⚙️',
+        name: 'Execution Layer',
+        nameEn: '执行层',
+        status: 'active',
+        statusText: '双Agent在线',
+        details: [],
+        agents: [
+          { name: 'QClaw', status: 'busy', taskCount: 3, statusText: '任务执行中' },
+          { name: 'Trae', status: 'idle', taskCount: 0, statusText: '待机中' }
+        ],
+        badge: null
+      },
+      {
+        icon: '🧬',
+        name: 'Evolution Layer',
+        nameEn: '进化层',
+        status: 'active',
+        statusText: '学习正常',
+        details: [
+          { label: '错误免疫', value: '0个已知错误' },
+          { label: '策略库', value: '8个' }
+        ],
+        badge: null
+      },
+      {
+        icon: '🏛️',
+        name: 'Governance Layer',
+        nameEn: '治理层',
+        status: 'active',
+        statusText: '监控正常',
+        details: [
+          { label: '审计日志', value: '100条' },
+          { label: '约束检查', value: '通过' }
+        ],
+        badge: null
+      }
+    ];
+
+    // 近期活动数据
+    const activityData = [
+      { time: '02:33', badge: 'qclaw', content: 'QClaw 完成任务: 监控面板设计' },
+      { time: '02:32', badge: 'trae', content: 'Trae 完成任务: 任务说明创建' },
+      { time: '02:30', badge: 'kernel', content: 'Meta Kernel 决策: 采用L3思维处理系统升级' },
+      { time: '02:28', badge: 'strategic', content: 'Strategic Layer 生成新任务: 构建监控面板' },
+      { time: '02:25', badge: 'kernel', content: 'Meta Kernel 启动系统自检' }
+    ];
+
+    // 提醒数据
+    const remindersData = [
+      { icon: '⚠️', type: 'warning', text: 'Trae当前处于待机状态，建议分配新任务' },
+      { icon: '💡', type: 'suggestion', text: '建议: 启动战略心跳，扫描今日目标进度' },
+      { icon: '✅', type: 'success', text: '所有系统运行正常，无异常' }
+    ];
+
+    /* ========================================
+       渲染函数 - Render Functions
+       ======================================== */
+
+    /**
+     * 渲染六层架构卡片
+     */
+    function renderLayers() {
+      const container = document.getElementById('layers-grid');
+      
+      const html = layersData.map((layer, index) => {
+        // 状态指示器类
+        const statusClass = layer.status === 'active' ? 'active' : 
+                           layer.status === 'warning' ? 'warning' : 'offline';
+        
+        // 详情标签HTML
+        let detailsHtml = '';
+        if (layer.details && layer.details.length > 0) {
+          detailsHtml = layer.details.map(d => 
+            `<span class="layer-tag">${d.label}: ${d.value}</span>`
+          ).join('');
+        }
+        
+        // Agent列表HTML
+        let agentsHtml = '';
+        if (layer.agents) {
+          agentsHtml = '<div class="agent-list">' + layer.agents.map(agent => {
+            const badgeClass = agent.name === 'QClaw' ? 'qclaw' : 'trae';
+            const statusColor = agent.status === 'busy' ? 'text-red' : 'text-blue';
+            return `
+              <div class="agent-item">
+                <span class="agent-badge ${badgeClass}">${agent.name}</span>
+                <span class="${statusColor}">${agent.statusText}</span>
+                <span class="text-dim">(${agent.taskCount}个任务)</span>
+              </div>
+            `;
+          }).join('') + '</div>';
+        }
+
+        return `
+          <div class="layer-card" style="animation-delay: ${index * 0.1}s">
+            <div class="layer-icon">${layer.icon}</div>
+            <div class="layer-info">
+              <div class="layer-name">
+                ${layer.name}
+                <span class="layer-name-en">(${layer.nameEn})</span>
+              </div>
+              <div class="layer-details">
+                ${detailsHtml}
+              </div>
+              ${agentsHtml}
+            </div>
+            <div class="layer-status">
+              <span class="status-dot ${statusClass}"></span>
+              <span class="layer-status-text">${layer.statusText}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = html;
+    }
+
+    /**
+     * 渲染近期活动
+     */
+    function renderActivity() {
+      const container = document.getElementById('activity-list');
+      
+      const html = activityData.map((item, index) => `
+        <div class="activity-item" style="animation-delay: ${index * 0.1}s">
+          <span class="activity-time">${item.time}</span>
+          <span class="activity-badge ${item.badge}">${item.badge.toUpperCase()}</span>
+          <span class="activity-content">${item.content}</span>
+        </div>
+      `).join('');
+
+      container.innerHTML = html;
+    }
+
+    /**
+     * 渲染提醒列表
+     */
+    function renderReminders() {
+      const container = document.getElementById('reminders-list');
+      
+      const html = remindersData.map((item, index) => {
+        const iconClass = item.type === 'warning' ? 'text-yellow' :
+                         item.type === 'suggestion' ? 'text-blue' : 'text-green';
+        return `
+          <div class="reminder-item">
+            <span class="reminder-icon ${iconClass}">${item.icon}</span>
+            <span class="reminder-text">${item.text}</span>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = html;
+    }
+
+    /**
+     * 更新时间戳
+     */
+    function updateTimestamp() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('zh-CN', { hour12: false });
+      document.getElementById('last-update').textContent = timeStr;
+    }
+
+    /* ========================================
+       交互功能 - Interaction Functions
+       ======================================== */
+
+    /**
+     * 刷新数据
+     */
+    function refreshData() {
+      // 添加刷新动画效果
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = '🔄 刷新中...';
+      btn.disabled = true;
+
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+        updateTimestamp();
+        
+        // 显示成功提示
+        showToast('数据已刷新', 'success');
+      }, 1000);
+    }
+
+    /**
+     * 设置面板（占位函数）
+     */
+    function toggleSettings() {
+      showToast('设置面板开发中...', 'info');
+    }
+
+    /**
+     * 帮助面板（占位函数）
+     */
+    function showHelp() {
+      showToast('使用说明: 本面板展示帝国OS系统状态', 'info');
+    }
+
+    /**
+     * 轻量级Toast提示
+     */
+    function showToast(message, type = 'info') {
+      // 移除已有的toast
+      const existing = document.querySelector('.toast');
+      if (existing) existing.remove();
+
+      // 创建toast元素
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: var(--bg-card);
+        border: 1px solid ${type === 'success' ? 'var(--empire-green)' : 'var(--tech-blue)'};
+        color: var(--text-primary);
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        z-index: 1000;
+        animation: fade-in 0.3s ease-out;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      `;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      // 3秒后移除
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    /* ========================================
+       初始化 - Initialization
+       ======================================== */
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      // 渲染所有组件
+      renderLayers();
+      renderActivity();
+      renderReminders();
+      updateTimestamp();
+
+      // 启动定时刷新（每30秒）
+      setInterval(() => {
+        updateTimestamp();
+      }, 30000);
+
+      console.log('🎛️ 帝国OS状态监控面板已初始化');
+    });
+
+    /* ========================================
+       数据更新机制（预留接口）
+       ======================================== */
+    
+    /**
+     * 未来可接入真实API的数据更新函数
+     * 当前版本使用静态模拟数据
+     */
+    async function fetchRealTimeData() {
+      // 预留未来接入API的接口
+      // const response = await fetch('http://localhost:3000/api/os-status');
+      // const data = await response.json();
+      // updateDashboard(data);
+    }
+  </script>
+</body>
+</html>
