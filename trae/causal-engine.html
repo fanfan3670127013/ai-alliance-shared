@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>帝国OS 因果预测引擎</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ========== 全局重置与变量 ========== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0f;
+  --bg-card: rgba(15, 20, 30, 0.75);
+  --bg-card-hover: rgba(20, 28, 42, 0.85);
+  --green: #00ff88;
+  --blue: #00b4ff;
+  --yellow: #ffd93d;
+  --red: #ff6b6b;
+  --text: #e0e6ed;
+  --text-dim: #7a8ba3;
+  --border: rgba(0, 255, 136, 0.15);
+  --glow-green: 0 0 20px rgba(0, 255, 136, 0.3);
+  --glow-blue: 0 0 20px rgba(0, 180, 255, 0.3);
+  --radius: 12px;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+}
+html { font-size: 14px; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ========== 粒子星空背景 ========== */
+#particle-canvas {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 0; pointer-events: none;
+}
+
+/* ========== 扫描线效果 ========== */
+body::after {
+  content: '';
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 136, 0.015) 2px,
+    rgba(0, 255, 136, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* ========== 主容器 ========== */
+.app-container {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ========== 顶部导航栏 ========== */
+.top-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px;
+  background: rgba(10, 10, 15, 0.9);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  position: sticky; top: 0; z-index: 100;
+}
+.nav-logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700; font-size: 1.15rem;
+  color: var(--green);
+  text-shadow: 0 0 12px rgba(0, 255, 136, 0.5);
+  white-space: nowrap;
+}
+.nav-logo .version {
+  font-size: 0.7rem; font-weight: 400;
+  color: var(--text-dim);
+  background: rgba(0, 255, 136, 0.1);
+  padding: 2px 8px; border-radius: 20px;
+  border: 1px solid rgba(0, 255, 136, 0.2);
+}
+.nav-clock {
+  font-family: var(--font-mono);
+  font-size: 1rem; color: var(--blue);
+  text-shadow: 0 0 10px rgba(0, 180, 255, 0.4);
+  letter-spacing: 1px;
+}
+.nav-tabs {
+  display: flex; gap: 4px;
+}
+.nav-tab {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+.nav-tab:hover {
+  color: var(--green);
+  border-color: rgba(0, 255, 136, 0.3);
+  background: rgba(0, 255, 136, 0.05);
+}
+.nav-tab.active {
+  color: var(--green);
+  border-color: var(--green);
+  background: rgba(0, 255, 136, 0.1);
+  box-shadow: var(--glow-green);
+}
+
+/* ========== 主内容区 ========== */
+.main-content {
+  flex: 1; padding: 20px 24px;
+}
+.tab-panel {
+  display: none;
+  animation: fadeIn 0.4s ease;
+}
+.tab-panel.active { display: block; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========== 玻璃拟态卡片 ========== */
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+  padding: 20px;
+  transition: all 0.3s;
+}
+.glass-card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(0, 255, 136, 0.25);
+}
+.card-title {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--green);
+  margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title::before {
+  content: ''; display: inline-block;
+  width: 3px; height: 14px;
+  background: var(--green);
+  border-radius: 2px;
+  box-shadow: 0 0 8px var(--green);
+}
+
+/* ========== 标签页一：因果图谱 ========== */
+.graph-container {
+  display: flex; gap: 20px;
+  flex-wrap: wrap;
+}
+.graph-svg-wrap {
+  flex: 1; min-width: 300px;
+  position: relative;
+}
+.graph-svg-wrap svg {
+  width: 100%; height: 520px;
+  border-radius: var(--radius);
+  background: rgba(5, 8, 15, 0.6);
+  border: 1px solid var(--border);
+}
+.graph-sidebar {
+  width: 220px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 0.85rem; color: var(--text-dim);
+  padding: 6px 0;
+}
+.legend-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.legend-dot.action { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.legend-dot.state { background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+.legend-dot.outcome { background: #44dd88; box-shadow: 0 0 8px #44dd88; }
+
+/* SVG 图谱节点样式 */
+.graph-node { cursor: grab; }
+.graph-node:active { cursor: grabbing; }
+.graph-node circle {
+  stroke-width: 2;
+  transition: all 0.3s;
+  filter: drop-shadow(0 0 6px rgba(0,255,136,0.3));
+}
+.graph-node:hover circle {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 14px rgba(0,255,136,0.6));
+}
+.graph-node text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  fill: var(--text);
+  pointer-events: none;
+  text-anchor: middle;
+}
+.graph-edge {
+  fill: none;
+  stroke-linecap: round;
+  transition: all 0.3s;
+}
+.graph-edge.highlighted {
+  stroke: var(--green) !important;
+  filter: drop-shadow(0 0 6px rgba(0,255,136,0.5));
+}
+.edge-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--text-dim);
+  pointer-events: none;
+}
+.edge-label-bg {
+  fill: var(--bg);
+  rx: 4; ry: 4;
+  opacity: 0.85;
+}
+
+/* 流动光点动画 */
+@keyframes flowDot {
+  0% { offset-distance: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+.flow-dot {
+  offset-path: path('');
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  position: absolute;
+  animation: flowDot 3s linear infinite;
+}
+
+/* Tooltip */
+.graph-tooltip {
+  position: absolute;
+  background: rgba(10, 14, 22, 0.95);
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 0.8rem;
+  color: var(--text);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 50;
+  min-width: 180px;
+  box-shadow: 0 0 20px rgba(0,255,136,0.15);
+}
+.graph-tooltip.visible { opacity: 1; }
+.graph-tooltip .tt-type {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+.graph-tooltip .tt-type.action { background: rgba(0,255,136,0.15); color: var(--green); }
+.graph-tooltip .tt-type.state { background: rgba(0,180,255,0.15); color: var(--blue); }
+.graph-tooltip .tt-type.outcome { background: rgba(68,221,136,0.15); color: #44dd88; }
+.graph-tooltip .tt-name {
+  font-weight: 600; font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+.graph-tooltip .tt-desc {
+  color: var(--text-dim); font-size: 0.75rem;
+  margin-bottom: 6px;
+}
+.graph-tooltip .tt-conn {
+  color: var(--text-dim); font-size: 0.72rem;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+/* ========== 标签页二：假设推演 ========== */
+.deduction-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+}
+.deduction-input { display: flex; flex-direction: column; gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.form-select, .form-input {
+  background: rgba(10, 14, 22, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.3s;
+}
+.form-select:focus, .form-input:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 10px rgba(0,255,136,0.15);
+}
+.form-select option { background: #0a0a0f; }
+.time-range-group {
+  display: flex; gap: 8px;
+}
+.time-btn {
+  flex: 1;
+  padding: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.time-btn:hover { border-color: var(--blue); color: var(--blue); }
+.time-btn.active {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: rgba(0, 180, 255, 0.1);
+  box-shadow: var(--glow-blue);
+}
+.btn-primary {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: 12px 20px;
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--green);
+  cursor: pointer;
+  transition: all 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.btn-primary:hover {
+  background: rgba(0, 255, 136, 0.2);
+  box-shadow: var(--glow-green);
+  transform: translateY(-1px);
+}
+.btn-primary:active { transform: translateY(0); }
+
+/* 推演结果区 */
+.deduction-result {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.result-placeholder {
+  display: flex; align-items: center; justify-content: center;
+  height: 400px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  text-align: center;
+}
+.result-placeholder .icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.3; }
+
+/* 结果卡片 */
+.result-cards { display: flex; flex-direction: column; gap: 16px; }
+.result-card {
+  opacity: 0; transform: translateY(20px);
+  animation: cardSlideIn 0.5s ease forwards;
+}
+.result-card:nth-child(1) { animation-delay: 0.1s; }
+.result-card:nth-child(2) { animation-delay: 0.25s; }
+.result-card:nth-child(3) { animation-delay: 0.4s; }
+.result-card:nth-child(4) { animation-delay: 0.55s; }
+.result-card:nth-child(5) { animation-delay: 0.7s; }
+.result-card:nth-child(6) { animation-delay: 0.85s; }
+@keyframes cardSlideIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.effect-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.effect-item:last-child { border-bottom: none; }
+.effect-name { font-size: 0.85rem; }
+.effect-bar-wrap {
+  display: flex; align-items: center; gap: 10px;
+  width: 180px;
+}
+.effect-bar {
+  flex: 1; height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px; overflow: hidden;
+}
+.effect-bar-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--green), var(--blue));
+  transition: width 1s ease;
+  box-shadow: 0 0 8px rgba(0,255,136,0.4);
+}
+.effect-pct {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--green);
+  min-width: 36px; text-align: right;
+}
+.cost-item, .risk-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0;
+  font-size: 0.85rem;
+}
+
+/* 综合评分仪表盘 */
+.score-gauge-wrap {
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px 0;
+}
+.score-gauge {
+  position: relative;
+  width: 160px; height: 160px;
+}
+.score-gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.score-gauge .gauge-bg {
+  fill: none;
+  stroke: rgba(255,255,255,0.06);
+  stroke-width: 10;
+}
+.score-gauge .gauge-fill {
+  fill: none;
+  stroke: var(--green);
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-dasharray: 408;
+  stroke-dashoffset: 408;
+  transition: stroke-dashoffset 1.5s ease;
+  filter: drop-shadow(0 0 8px rgba(0,255,136,0.5));
+}
+.score-gauge .gauge-value {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+.score-gauge .gauge-num {
+  font-family: var(--font-mono);
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--green);
+  text-shadow: 0 0 20px rgba(0,255,136,0.5);
+}
+.score-gauge .gauge-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* 推荐标签 */
+.recommend-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.recommend-tag.yes {
+  background: rgba(0,255,136,0.1);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+.recommend-tag.neutral {
+  background: rgba(255,217,61,0.1);
+  border: 1px solid var(--yellow);
+  color: var(--yellow);
+}
+.recommend-tag.no {
+  background: rgba(255,107,107,0.1);
+  border: 1px solid var(--red);
+  color: var(--red);
+}
+
+.action-buttons {
+  display: flex; gap: 10px; margin-top: 8px;
+}
+.btn-execute {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 10px 20px;
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--green);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.btn-execute:hover {
+  background: rgba(0, 255, 136, 0.25);
+  box-shadow: var(--glow-green);
+}
+.btn-plan {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 10px 20px;
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  background: rgba(0, 180, 255, 0.1);
+  color: var(--blue);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.btn-plan:hover {
+  background: rgba(0, 180, 255, 0.2);
+  box-shadow: var(--glow-blue);
+}
+
+/* ========== 标签页三：历史记录 ========== */
+.history-layout {
+  display: flex; flex-direction: column; gap: 20px;
+}
+.accuracy-card {
+  display: flex; align-items: center; gap: 30px;
+  padding: 28px;
+}
+.accuracy-big-num {
+  font-family: var(--font-mono);
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: var(--green);
+  text-shadow: 0 0 30px rgba(0,255,136,0.4);
+  line-height: 1;
+}
+.accuracy-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.accuracy-detail {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.accuracy-stat {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 0.82rem;
+}
+.accuracy-stat .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.accuracy-stat .dot.hit { background: var(--green); }
+.accuracy-stat .dot.miss { background: var(--red); }
+.accuracy-stat .dot.pending { background: var(--yellow); }
+
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item {
+  display: grid;
+  grid-template-columns: 70px 1fr 1fr 1fr 100px;
+  align-items: center;
+  padding: 14px 18px;
+  gap: 12px;
+  font-size: 0.85rem;
+  transition: all 0.3s;
+}
+.history-item:hover {
+  background: var(--bg-card-hover);
+}
+.history-time {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+.history-action {
+  font-weight: 500;
+  color: var(--text);
+}
+.history-predict, .history-actual {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+.history-status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-align: center;
+  font-weight: 600;
+}
+.history-status.hit {
+  background: rgba(0,255,136,0.1);
+  color: var(--green);
+  border: 1px solid rgba(0,255,136,0.3);
+}
+.history-status.miss {
+  background: rgba(255,107,107,0.1);
+  color: var(--red);
+  border: 1px solid rgba(255,107,107,0.3);
+}
+.history-status.pending {
+  background: rgba(255,217,61,0.1);
+  color: var(--yellow);
+  border: 1px solid rgba(255,217,61,0.3);
+}
+.history-header {
+  display: grid;
+  grid-template-columns: 70px 1fr 1fr 1fr 100px;
+  padding: 10px 18px;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ========== 底部状态栏 ========== */
+.bottom-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 24px;
+  background: rgba(10, 10, 15, 0.9);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  position: sticky; bottom: 0; z-index: 100;
+}
+.status-left, .status-right { display: flex; align-items: center; gap: 16px; }
+.status-center {
+  display: flex; align-items: center; gap: 8px;
+}
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 2s ease infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.status-sep {
+  color: rgba(255,255,255,0.15);
+}
+
+/* ========== 设置模态框 ========== */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.7);
+  z-index: 200;
+  display: none;
+  align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: rgba(15, 20, 30, 0.95);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  width: 90%; max-width: 460px;
+  backdrop-filter: blur(16px);
+}
+.modal-title {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--green);
+  margin-bottom: 20px;
+}
+.modal-close {
+  float: right;
+  background: none; border: none;
+  color: var(--text-dim);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+.modal-close:hover { color: var(--red); }
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-label { font-size: 0.85rem; }
+.setting-desc { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+.toggle {
+  width: 44px; height: 24px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s;
+}
+.toggle.on {
+  background: rgba(0,255,136,0.2);
+  border-color: var(--green);
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: all 0.3s;
+}
+.toggle.on::after {
+  left: 23px;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+
+/* ========== Toast 通知 ========== */
+.toast-container {
+  position: fixed; top: 70px; right: 20px;
+  z-index: 300;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: rgba(15, 20, 30, 0.95);
+  border: 1px solid var(--green);
+  color: var(--green);
+  box-shadow: 0 0 20px rgba(0,255,136,0.15);
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+  backdrop-filter: blur(12px);
+}
+.toast.warn {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+.toast.error {
+  border-color: var(--red);
+  color: var(--red);
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes toastOut {
+  from { opacity: 1; }
+  to { opacity: 0; transform: translateY(-10px); }
+}
+
+/* ========== 响应式 ========== */
+@media (max-width: 1024px) {
+  .deduction-layout {
+    grid-template-columns: 1fr;
+  }
+  .graph-sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .graph-container {
+    flex-direction: column;
+  }
+}
+@media (max-width: 768px) {
+  .top-nav {
+    flex-wrap: wrap; gap: 8px;
+    padding: 10px 16px;
+  }
+  .nav-clock { order: -1; width: 100%; text-align: center; font-size: 0.85rem; }
+  .nav-tabs { width: 100%; justify-content: center; }
+  .nav-tab { font-size: 0.7rem; padding: 5px 10px; }
+  .main-content { padding: 14px 16px; }
+  .history-item {
+    grid-template-columns: 60px 1fr 80px 80px 80px;
+    font-size: 0.78rem;
+    padding: 10px 12px;
+  }
+  .history-header {
+    grid-template-columns: 60px 1fr 80px 80px 80px;
+  }
+  .accuracy-big-num { font-size: 2.5rem; }
+  .accuracy-card { padding: 18px; gap: 20px; }
+  .bottom-bar { flex-wrap: wrap; gap: 6px; justify-content: center; font-size: 0.65rem; }
+}
+@media (max-width: 480px) {
+  .nav-logo .logo-text { display: none; }
+  .history-item {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .history-header { display: none; }
+  .history-time { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+
+<!-- 粒子星空背景 -->
+<canvas id="particle-canvas"></canvas>
+
+<!-- Toast 通知容器 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- 设置模态框 -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="toggleSettings()">&times;</button>
+    <div class="modal-title">⚙ 引擎设置</div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">粒子背景</div>
+        <div class="setting-desc">显示星空粒子动画效果</div>
+      </div>
+      <div class="toggle on" id="toggleParticles" onclick="toggleOption(this)"></div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">扫描线效果</div>
+        <div class="setting-desc">CRT 风格扫描线叠加</div>
+      </div>
+      <div class="toggle on" id="toggleScanline" onclick="toggleScanlines(this)"></div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">流动光点</div>
+        <div class="setting-desc">因果图谱边上的方向指示</div>
+      </div>
+      <div class="toggle on" id="toggleFlowDots" onclick="toggleFlowDotsOption(this)"></div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">自动推演</div>
+        <div class="setting-desc">Action 变更时自动触发推演</div>
+      </div>
+      <div class="toggle" id="toggleAutoDeduct" onclick="toggleOption(this)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 主容器 -->
+<div class="app-container">
+
+  <!-- 顶部导航栏 -->
+  <nav class="top-nav">
+    <div class="nav-logo">
+      <span>🧬</span>
+      <span class="logo-text">因果预测引擎</span>
+      <span class="version">v0.1</span>
+    </div>
+    <div class="nav-clock" id="navClock">--:--:--</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="graph" onclick="switchTab('graph')">因果图谱</button>
+      <button class="nav-tab" data-tab="deduction" onclick="switchTab('deduction')">假设推演</button>
+      <button class="nav-tab" data-tab="history" onclick="switchTab('history')">历史</button>
+      <button class="nav-tab" data-tab="settings" onclick="toggleSettings()">设置</button>
+    </div>
+  </nav>
+
+  <!-- 主内容区 -->
+  <main class="main-content">
+
+    <!-- 标签页一：因果图谱 -->
+    <div class="tab-panel active" id="panel-graph">
+      <div class="graph-container">
+        <div class="graph-svg-wrap" id="graphSvgWrap">
+          <svg id="causalGraph" viewBox="0 0 800 520" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <!-- 箭头标记 -->
+              <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#00ff88" opacity="0.6"/>
+              </marker>
+              <marker id="arrowHighlight" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#00ff88"/>
+              </marker>
+              <!-- 发光滤镜 -->
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="3" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <!-- 边和节点将由 JS 动态渲染 -->
+          </svg>
+          <!-- Tooltip -->
+          <div class="graph-tooltip" id="graphTooltip">
+            <div class="tt-type" id="ttType"></div>
+            <div class="tt-name" id="ttName"></div>
+            <div class="tt-desc" id="ttDesc"></div>
+            <div class="tt-conn" id="ttConn"></div>
+          </div>
+        </div>
+        <div class="graph-sidebar">
+          <div class="glass-card">
+            <div class="card-title">图例</div>
+            <div class="legend-item"><div class="legend-dot action"></div>Action（行动节点）</div>
+            <div class="legend-item"><div class="legend-dot state"></div>State（状态节点）</div>
+            <div class="legend-item"><div class="legend-dot outcome"></div>Outcome（结果节点）</div>
+          </div>
+          <div class="glass-card">
+            <div class="card-title">图谱统计</div>
+            <div style="font-family:var(--font-mono);font-size:0.82rem;color:var(--text-dim);line-height:2;">
+              节点数：<span style="color:var(--green)">8</span><br>
+              边数：<span style="color:var(--green)">8</span><br>
+              平均因果强度：<span style="color:var(--green)">73.5%</span>
+            </div>
+          </div>
+          <div class="glass-card">
+            <div class="card-title">操作提示</div>
+            <div style="font-size:0.78rem;color:var(--text-dim);line-height:1.8;">
+              拖拽节点可重新排列<br>
+              悬停查看节点详情<br>
+              点击高亮关联路径
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 标签页二：假设推演 -->
+    <div class="tab-panel" id="panel-deduction">
+      <div class="deduction-layout">
+        <!-- 左侧输入区 -->
+        <div class="deduction-input">
+          <div class="glass-card">
+            <div class="card-title">推演参数</div>
+            <div class="form-group">
+              <label class="form-label">选择 Action</label>
+              <select class="form-select" id="actionSelect">
+                <option value="">-- 请选择 --</option>
+                <option value="heartbeat">启动战略心跳</option>
+                <option value="trae_causal">为Trae分配因果预测任务</option>
+                <option value="risk_module">启动风险评估模块</option>
+                <option value="optimize_collab">优化双Agent协同流程</option>
+                <option value="custom">自定义输入...</option>
+              </select>
+            </div>
+            <div class="form-group" id="customInputGroup" style="display:none;">
+              <label class="form-label">自定义 Action</label>
+              <input class="form-input" id="customAction" placeholder="输入自定义 Action 描述...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">预测时间范围</label>
+              <div class="time-range-group">
+                <button class="time-btn" data-range="1" onclick="selectRange(this)">1天</button>
+                <button class="time-btn active" data-range="7" onclick="selectRange(this)">7天</button>
+                <button class="time-btn" data-range="30" onclick="selectRange(this)">30天</button>
+              </div>
+            </div>
+            <button class="btn-primary" onclick="runDeduction()">▶ 开始推演</button>
+          </div>
+        </div>
+
+        <!-- 右侧结果区 -->
+        <div class="deduction-result" id="deductionResult">
+          <div class="result-placeholder">
+            <div>
+              <div class="icon">🔮</div>
+              <div>选择 Action 并点击「开始推演」</div>
+              <div style="font-size:0.75rem;margin-top:6px;color:var(--text-dim);">引擎将基于因果图谱进行预测分析</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 标签页三：历史预测记录 -->
+    <div class="tab-panel" id="panel-history">
+      <div class="history-layout">
+        <div class="glass-card accuracy-card">
+          <div>
+            <div class="accuracy-big-num">91.7%</div>
+            <div class="accuracy-label">综合预测准确率</div>
+          </div>
+          <div class="accuracy-detail">
+            <div class="accuracy-stat"><div class="dot hit"></div>命中：2 次</div>
+            <div class="accuracy-stat"><div class="dot miss"></div>偏差：1 次</div>
+            <div class="accuracy-stat"><div class="dot pending"></div>待验证：1 次</div>
+            <div class="accuracy-stat" style="margin-top:4px;color:var(--text-dim);">总计：4 条预测记录</div>
+          </div>
+        </div>
+        <div class="glass-card" style="padding:0;overflow:hidden;">
+          <div class="history-header">
+            <span>时间</span>
+            <span>Action</span>
+            <span>预测值</span>
+            <span>实际值</span>
+            <span>状态</span>
+          </div>
+          <div class="history-list">
+            <div class="history-item">
+              <span class="history-time">02:00</span>
+              <span class="history-action">启动监控面板</span>
+              <span class="history-predict" style="color:var(--green);">覆盖率 +20%</span>
+              <span class="history-actual" style="color:var(--blue);">实际 +22%</span>
+              <span class="history-status hit">✅ 命中 (95%)</span>
+            </div>
+            <div class="history-item">
+              <span class="history-time">01:30</span>
+              <span class="history-action">双Agent协同</span>
+              <span class="history-predict" style="color:var(--green);">效率 +30%</span>
+              <span class="history-actual" style="color:var(--blue);">实际 +28%</span>
+              <span class="history-status hit">✅ 命中 (93%)</span>
+            </div>
+            <div class="history-item">
+              <span class="history-time">01:00</span>
+              <span class="history-action">启动因果引擎</span>
+              <span class="history-predict" style="color:var(--green);">预测准确 +25%</span>
+              <span class="history-actual" style="color:var(--yellow);">待验证</span>
+              <span class="history-status pending">⏳ 待验证 (92%)</span>
+            </div>
+            <div class="history-item">
+              <span class="history-time">00:30</span>
+              <span class="history-action">优化协同流程</span>
+              <span class="history-predict" style="color:var(--green);">效率 +15%</span>
+              <span class="history-actual" style="color:var(--red);">实际 +8%</span>
+              <span class="history-status miss">❌ 偏差 (53%)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 底部状态栏 -->
+  <footer class="bottom-bar">
+    <div class="status-left">
+      <span>节点: <span style="color:var(--green)">8</span></span>
+      <span class="status-sep">|</span>
+      <span>边: <span style="color:var(--green)">8</span></span>
+      <span class="status-sep">|</span>
+      <span>记录: <span style="color:var(--green)">4</span></span>
+    </div>
+    <div class="status-center">
+      <div class="status-dot"></div>
+      <span>引擎状态：活跃</span>
+    </div>
+    <div class="status-right">
+      <span>Powered by 帝国OS</span>
+      <span class="status-sep">|</span>
+      <span>QClaw + Trae + SOLO</span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+/* ================================================================
+   帝国OS 因果预测引擎 - 核心脚本
+   ================================================================ */
+
+// ==================== 实时时钟 ====================
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  document.getElementById('navClock').textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ==================== Toast 通知 ====================
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast' + (type === 'warn' ? ' warn' : type === 'error' ? ' error' : '');
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3200);
+}
+
+// ==================== 标签页切换 ====================
+function switchTab(tabId) {
+  // 设置按钮不切换面板
+  if (tabId === 'settings') return;
+  // 更新按钮状态
+  document.querySelectorAll('.nav-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
+  // 更新面板
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.remove('active');
+  });
+  const target = document.getElementById('panel-' + tabId);
+  if (target) {
+    target.classList.add('active');
+    // 重新触发动画
+    target.style.animation = 'none';
+    target.offsetHeight; // 强制重排
+    target.style.animation = '';
+  }
+}
+
+// ==================== 设置模态框 ====================
+function toggleSettings() {
+  document.getElementById('settingsModal').classList.toggle('open');
+}
+function toggleOption(el) {
+  el.classList.toggle('on');
+}
+function toggleScanlines(el) {
+  el.classList.toggle('on');
+  document.body.style.setProperty('--scanline-display', el.classList.contains('on') ? 'block' : 'none');
+  // 通过切换伪元素实现
+  if (el.classList.contains('on')) {
+    document.body.classList.remove('no-scanlines');
+  } else {
+    document.body.classList.add('no-scanlines');
+  }
+}
+let flowDotsEnabled = true;
+function toggleFlowDotsOption(el) {
+  el.classList.toggle('on');
+  flowDotsEnabled = el.classList.contains('on');
+  // 切换流动光点可见性
+  document.querySelectorAll('.flow-dot-anim').forEach(dot => {
+    dot.style.display = flowDotsEnabled ? '' : 'none';
+  });
+}
+
+// ==================== 粒子星空背景 ====================
+const canvas = document.getElementById('particle-canvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+const PARTICLE_COUNT = 120;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// 初始化粒子
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  particles.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    r: Math.random() * 1.5 + 0.3,
+    dx: (Math.random() - 0.5) * 0.3,
+    dy: (Math.random() - 0.5) * 0.3,
+    alpha: Math.random() * 0.6 + 0.2,
+    pulse: Math.random() * Math.PI * 2
+  });
+}
+
+function drawParticles() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const time = Date.now() * 0.001;
+  particles.forEach(p => {
+    p.x += p.dx;
+    p.y += p.dy;
+    // 边界循环
+    if (p.x < 0) p.x = canvas.width;
+    if (p.x > canvas.width) p.x = 0;
+    if (p.y < 0) p.y = canvas.height;
+    if (p.y > canvas.height) p.y = 0;
+    // 脉冲闪烁
+    const alpha = p.alpha * (0.6 + 0.4 * Math.sin(time * 0.8 + p.pulse));
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0, 255, 136, ${alpha})`;
+    ctx.fill();
+    // 少量蓝色粒子
+    if (p.r > 1.2) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * 2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0, 180, 255, ${alpha * 0.15})`;
+      ctx.fill();
+    }
+  });
+  // 绘制连线（距离近的粒子之间）
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 100) {
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.strokeStyle = `rgba(0, 255, 136, ${0.06 * (1 - dist / 100)})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+  }
+  requestAnimationFrame(drawParticles);
+}
+drawParticles();
+
+// ==================== 因果图谱 ====================
+// 预设数据
+const graphNodes = [
+  { id: 'n1', label: '启动监控面板', type: 'action', desc: '部署系统监控面板，实时追踪关键指标', x: 120, y: 80 },
+  { id: 'n2', label: '感知能力提升', type: 'state', desc: '系统整体感知与洞察能力增强', x: 320, y: 80 },
+  { id: 'n3', label: '问题发现率↑', type: 'outcome', desc: '异常和问题的发现速度与覆盖率提升', x: 520, y: 60 },
+  { id: 'n4', label: '决策效率↑', type: 'outcome', desc: '指挥官决策速度和质量提升', x: 680, y: 160 },
+  { id: 'n5', label: '双Agent协同', type: 'action', desc: 'QClaw与Trae双Agent协作模式', x: 120, y: 280 },
+  { id: 'n6', label: '开发效率↑', type: 'outcome', desc: '开发任务完成速度和质量提升', x: 320, y: 300 },
+  { id: 'n7', label: '战略心跳启动', type: 'action', desc: '启动定期战略状态汇报机制', x: 120, y: 440 },
+  { id: 'n8', label: '系统感知力↑', type: 'state', desc: '全局系统感知和态势理解能力提升', x: 380, y: 440 },
+];
+
+const graphEdges = [
+  { from: 'n1', to: 'n2', strength: 85 },
+  { from: 'n2', to: 'n3', strength: 72 },
+  { from: 'n2', to: 'n4', strength: 68 },
+  { from: 'n5', to: 'n6', strength: 90 },
+  { from: 'n7', to: 'n8', strength: 88 },
+  { from: 'n8', to: 'n3', strength: 75 },
+  { from: 'n8', to: 'n4', strength: 65 },
+  { from: 'n3', to: 'n4', strength: 45 },
+];
+
+// 节点颜色映射
+const nodeColors = {
+  action: { fill: 'rgba(0, 255, 136, 0.15)', stroke: '#00ff88' },
+  state: { fill: 'rgba(0, 180, 255, 0.15)', stroke: '#00b4ff' },
+  outcome: { fill: 'rgba(68, 221, 136, 0.15)', stroke: '#44dd88' },
+};
+const typeLabels = { action: 'Action', state: 'State', outcome: 'Outcome' };
+
+const svg = document.getElementById('causalGraph');
+const svgNS = 'http://www.w3.org/2000/svg';
+const tooltip = document.getElementById('graphTooltip');
+let selectedNode = null;
+let dragNode = null;
+let dragOffset = { x: 0, y: 0 };
+
+// 计算节点连接数
+function getNodeConnections(nodeId) {
+  const incoming = graphEdges.filter(e => e.to === nodeId).length;
+  const outgoing = graphEdges.filter(e => e.from === nodeId).length;
+  return { incoming, outgoing, total: incoming + outgoing };
+}
+
+// 渲染图谱
+function renderGraph() {
+  // 清除旧内容（保留 defs）
+  const defs = svg.querySelector('defs');
+  while (svg.lastChild && svg.lastChild !== defs) {
+    svg.removeChild(svg.lastChild);
+  }
+
+  // 绘制边
+  graphEdges.forEach((edge, idx) => {
+    const fromNode = graphNodes.find(n => n.id === edge.from);
+    const toNode = graphNodes.find(n => n.id === edge.to);
+    if (!fromNode || !toNode) return;
+
+    const path = document.createElementNS(svgNS, 'path');
+    // 计算贝塞尔曲线控制点（轻微弯曲）
+    const mx = (fromNode.x + toNode.x) / 2;
+    const my = (fromNode.y + toNode.y) / 2;
+    const dx = toNode.x - fromNode.x;
+    const dy = toNode.y - fromNode.y;
+    const cx = mx - dy * 0.1;
+    const cy = my + dx * 0.1;
+    path.setAttribute('d', `M${fromNode.x},${fromNode.y} Q${cx},${cy} ${toNode.x},${toNode.y}`);
+    path.setAttribute('class', 'graph-edge');
+    path.setAttribute('data-from', edge.from);
+    path.setAttribute('data-to', edge.to);
+    path.setAttribute('id', `edge-${idx}`);
+    const opacity = 0.2 + (edge.strength / 100) * 0.6;
+    const width = 1 + (edge.strength / 100) * 3;
+    path.setAttribute('stroke', `rgba(0, 255, 136, ${opacity})`);
+    path.setAttribute('stroke-width', width);
+    path.setAttribute('marker-end', 'url(#arrowGreen)');
+    svg.appendChild(path);
+
+    // 边上强度标签
+    const labelBg = document.createElementNS(svgNS, 'rect');
+    const labelText = document.createElementNS(svgNS, 'text');
+    labelText.setAttribute('class', 'edge-label');
+    labelText.setAttribute('x', cx);
+    labelText.setAttribute('y', cy - 6);
+    labelText.setAttribute('text-anchor', 'middle');
+    labelText.textContent = edge.strength + '%';
+    // 背景矩形
+    const bbox = { width: 32, height: 16 };
+    labelBg.setAttribute('class', 'edge-label-bg');
+    labelBg.setAttribute('x', cx - bbox.width / 2);
+    labelBg.setAttribute('y', cy - 18);
+    labelBg.setAttribute('width', bbox.width);
+    labelBg.setAttribute('height', bbox.height);
+    svg.appendChild(labelBg);
+    svg.appendChild(labelText);
+
+    // 流动光点（沿路径运动的小圆）
+    const flowDot = document.createElementNS(svgNS, 'circle');
+    flowDot.setAttribute('r', '3');
+    flowDot.setAttribute('fill', '#00ff88');
+    flowDot.setAttribute('opacity', '0.8');
+    flowDot.setAttribute('filter', 'url(#glow)');
+    flowDot.setAttribute('class', 'flow-dot-anim');
+    // 使用 animateMotion 沿路径运动
+    const animMotion = document.createElementNS(svgNS, 'animateMotion');
+    animMotion.setAttribute('dur', (2 + Math.random() * 2) + 's');
+    animMotion.setAttribute('repeatCount', 'indefinite');
+    animMotion.setAttribute('path', `M${fromNode.x},${fromNode.y} Q${cx},${cy} ${toNode.x},${toNode.y}`);
+    flowDot.appendChild(animMotion);
+    svg.appendChild(flowDot);
+  });
+
+  // 绘制节点
+  graphNodes.forEach(node => {
+    const g = document.createElementNS(svgNS, 'g');
+    g.setAttribute('class', 'graph-node');
+    g.setAttribute('data-id', node.id);
+    g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+
+    const colors = nodeColors[node.type];
+    // 外圈光晕
+    const glow = document.createElementNS(svgNS, 'circle');
+    glow.setAttribute('r', '32');
+    glow.setAttribute('fill', 'none');
+    glow.setAttribute('stroke', colors.stroke);
+    glow.setAttribute('stroke-width', '0.5');
+    glow.setAttribute('opacity', '0.2');
+    g.appendChild(glow);
+    // 主圆
+    const circle = document.createElementNS(svgNS, 'circle');
+    circle.setAttribute('r', '26');
+    circle.setAttribute('fill', colors.fill);
+    circle.setAttribute('stroke', colors.stroke);
+    g.appendChild(circle);
+    // 标签文字
+    const text = document.createElementNS(svgNS, 'text');
+    text.setAttribute('y', '4');
+    text.textContent = node.label;
+    g.appendChild(text);
+
+    // 事件绑定
+    g.addEventListener('mouseenter', (e) => showNodeTooltip(e, node));
+    g.addEventListener('mouseleave', hideNodeTooltip);
+    g.addEventListener('click', () => selectNode(node.id));
+    // 拖拽
+    g.addEventListener('mousedown', (e) => startDrag(e, node));
+
+    svg.appendChild(g);
+  });
+}
+
+// 显示节点 Tooltip
+function showNodeTooltip(e, node) {
+  const conn = getNodeConnections(node.id);
+  document.getElementById('ttType').className = 'tt-type ' + node.type;
+  document.getElementById('ttType').textContent = typeLabels[node.type];
+  document.getElementById('ttName').textContent = node.label;
+  document.getElementById('ttDesc').textContent = node.desc;
+  document.getElementById('ttConn').textContent = `入边: ${conn.incoming} | 出边: ${conn.outgoing} | 总计: ${conn.total}`;
+  tooltip.classList.add('visible');
+  // 定位
+  const wrap = document.getElementById('graphSvgWrap');
+  const rect = wrap.getBoundingClientRect();
+  tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
+  tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+}
+
+function hideNodeTooltip() {
+  tooltip.classList.remove('visible');
+}
+
+// 选中节点高亮
+function selectNode(nodeId) {
+  selectedNode = selectedNode === nodeId ? null : nodeId;
+  // 重置所有边
+  document.querySelectorAll('.graph-edge').forEach(edge => {
+    edge.classList.remove('highlighted');
+    edge.setAttribute('stroke-width', '');
+    // 恢复原始粗细
+    const from = edge.getAttribute('data-from');
+    const to = edge.getAttribute('data-to');
+    const edgeData = graphEdges.find(e => e.from === from && e.to === to);
+    if (edgeData) {
+      const opacity = 0.2 + (edgeData.strength / 100) * 0.6;
+      const width = 1 + (edgeData.strength / 100) * 3;
+      edge.setAttribute('stroke', `rgba(0, 255, 136, ${opacity})`);
+      edge.setAttribute('stroke-width', width);
+    }
+  });
+  // 高亮关联边
+  if (selectedNode) {
+    document.querySelectorAll('.graph-edge').forEach(edge => {
+      const from = edge.getAttribute('data-from');
+      const to = edge.getAttribute('data-to');
+      if (from === selectedNode || to === selectedNode) {
+        edge.classList.add('highlighted');
+        edge.setAttribute('stroke-width', '4');
+      }
+    });
+    showToast(`已选中节点: ${graphNodes.find(n => n.id === nodeId).label}`);
+  }
+}
+
+// 节点拖拽
+function startDrag(e, node) {
+  if (e.button !== 0) return;
+  dragNode = node;
+  const svgRect = svg.getBoundingClientRect();
+  const viewBox = svg.viewBox.baseVal;
+  const scaleX = viewBox.width / svgRect.width;
+  const scaleY = viewBox.height / svgRect.height;
+  dragOffset.x = (e.clientX - svgRect.left) * scaleX - node.x;
+  dragOffset.y = (e.clientY - svgRect.top) * scaleY - node.y;
+  e.preventDefault();
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!dragNode) return;
+  const svgRect = svg.getBoundingClientRect();
+  const viewBox = svg.viewBox.baseVal;
+  const scaleX = viewBox.width / svgRect.width;
+  const scaleY = viewBox.height / svgRect.height;
+  dragNode.x = (e.clientX - svgRect.left) * scaleX - dragOffset.x;
+  dragNode.y = (e.clientY - svgRect.top) * scaleY - dragOffset.y;
+  // 限制在 viewBox 范围内
+  dragNode.x = Math.max(40, Math.min(760, dragNode.x));
+  dragNode.y = Math.max(40, Math.min(480, dragNode.y));
+  renderGraph();
+  // 保持选中状态
+  if (selectedNode) selectNode(selectedNode);
+});
+
+document.addEventListener('mouseup', () => {
+  dragNode = null;
+});
+
+// 初始渲染
+renderGraph();
+
+// ==================== 假设推演 ====================
+// 时间范围选择
+function selectRange(btn) {
+  document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// 自定义 Action 切换
+document.getElementById('actionSelect').addEventListener('change', function() {
+  const customGroup = document.getElementById('customInputGroup');
+  customGroup.style.display = this.value === 'custom' ? 'flex' : 'none';
+});
+
+// 推演预设结果数据
+const deductionResults = {
+  heartbeat: {
+    direct: [
+      { name: '系统感知能力 +15%', confidence: 92 },
+      { name: '问题发现时间 -40%', confidence: 88 },
+      { name: '指挥官决策质量 +10%', confidence: 85 },
+    ],
+    indirect: [
+      { name: '因果图谱完善度 +5%', confidence: 75 },
+    ],
+    cost: [
+      { name: '计算资源 +2%', icon: '📊' },
+      { name: '心跳日志存储 +0.1MB/天', icon: '💾' },
+    ],
+    risk: '⚠️ 低风险：心跳可能增加系统负载（概率 8%）',
+    score: 85,
+    recommend: 'yes',
+    recommendText: '✅ 推荐',
+  },
+  trae_causal: {
+    direct: [
+      { name: '预测覆盖范围 +25%', confidence: 90 },
+      { name: '因果图谱节点 +12', confidence: 87 },
+      { name: '推演速度 +18%', confidence: 82 },
+    ],
+    indirect: [
+      { name: '双Agent协同效率 +8%', confidence: 70 },
+      { name: '战略决策数据支撑 +10%', confidence: 68 },
+    ],
+    cost: [
+      { name: 'Trae 负载 +15%', icon: '⚡' },
+      { name: '通信开销 +0.3MB/天', icon: '💾' },
+    ],
+    risk: '⚠️ 中风险：任务冲突可能影响 Trae 主线工作（概率 15%）',
+    score: 78,
+    recommend: 'neutral',
+    recommendText: '⚠️ 中立',
+  },
+  risk_module: {
+    direct: [
+      { name: '风险识别率 +30%', confidence: 94 },
+      { name: '预警提前量 +2小时', confidence: 89 },
+      { name: '故障恢复速度 +20%', confidence: 83 },
+    ],
+    indirect: [
+      { name: '系统稳定性 +12%', confidence: 76 },
+    ],
+    cost: [
+      { name: '计算资源 +5%', icon: '📊' },
+      { name: '存储 +0.5MB/天', icon: '💾' },
+    ],
+    risk: '✅ 极低风险：模块独立运行，影响可控（概率 3%）',
+    score: 92,
+    recommend: 'yes',
+    recommendText: '✅ 推荐',
+  },
+  optimize_collab: {
+    direct: [
+      { name: '协同效率 +22%', confidence: 86 },
+      { name: '任务切换成本 -35%', confidence: 80 },
+      { name: '通信延迟 -15%', confidence: 78 },
+    ],
+    indirect: [
+      { name: '整体开发速度 +10%', confidence: 72 },
+    ],
+    cost: [
+      { name: '配置调整工时 2h', icon: '🔧' },
+      { name: '过渡期效率暂时 -5%', icon: '📉' },
+    ],
+    risk: '⚠️ 中风险：流程变更可能导致短期混乱（概率 20%）',
+    score: 71,
+    recommend: 'neutral',
+    recommendText: '⚠️ 中立',
+  },
+  custom: {
+    direct: [
+      { name: '系统适应能力 +8%', confidence: 65 },
+      { name: '图谱覆盖度 +3%', confidence: 60 },
+    ],
+    indirect: [
+      { name: '未知连锁效应', confidence: 40 },
+    ],
+    cost: [
+      { name: '需评估', icon: '❓' },
+    ],
+    risk: '❌ 高风险：自定义 Action 缺乏历史数据支撑（概率 35%）',
+    score: 52,
+    recommend: 'no',
+    recommendText: '❌ 不推荐',
+  },
+};
+
+// 执行推演
+function runDeduction() {
+  const actionVal = document.getElementById('actionSelect').value;
+  if (!actionVal) {
+    showToast('请先选择一个 Action', 'warn');
+    return;
+  }
+  const resultArea = document.getElementById('deductionResult');
+  const data = deductionResults[actionVal];
+  if (!data) return;
+
+  const actionName = actionVal === 'custom'
+    ? document.getElementById('customAction').value || '自定义 Action'
+    : document.getElementById('actionSelect').selectedOptions[0].text;
+
+  // 仪表盘圆弧参数
+  const circumference = 2 * Math.PI * 65; // r=65
+  const offset = circumference * (1 - data.score / 100);
+
+  // 构建结果 HTML
+  let html = '<div class="result-cards">';
+
+  // 直接效果
+  html += `<div class="result-card glass-card">
+    <div class="card-title">直接效果</div>
+    ${data.direct.map(e => `
+      <div class="effect-item">
+        <span class="effect-name">${e.name}</span>
+        <div class="effect-bar-wrap">
+          <div class="effect-bar"><div class="effect-bar-fill" style="width:0%" data-target="${e.confidence}"></div></div>
+          <span class="effect-pct">${e.confidence}%</span>
+        </div>
+      </div>
+    `).join('')}
+  </div>`;
+
+  // 间接效果
+  html += `<div class="result-card glass-card">
+    <div class="card-title">间接效果</div>
+    ${data.indirect.map(e => `
+      <div class="effect-item">
+        <span class="effect-name">${e.name}</span>
+        <div class="effect-bar-wrap">
+          <div class="effect-bar"><div class="effect-bar-fill" style="width:0%" data-target="${e.confidence}"></div></div>
+          <span class="effect-pct">${e.confidence}%</span>
+        </div>
+      </div>
+    `).join('')}
+  </div>`;
+
+  // 成本评估
+  html += `<div class="result-card glass-card">
+    <div class="card-title">成本评估</div>
+    ${data.cost.map(c => `
+      <div class="cost-item"><span>${c.icon}</span><span>${c.name}</span></div>
+    `).join('')}
+  </div>`;
+
+  // 风险评估
+  html += `<div class="result-card glass-card">
+    <div class="card-title">风险评估</div>
+    <div class="risk-item" style="font-size:0.85rem;">${data.risk}</div>
+  </div>`;
+
+  // 综合评分 + 推荐
+  html += `<div class="result-card glass-card">
+    <div class="card-title">综合评估</div>
+    <div style="display:flex;align-items:center;gap:30px;flex-wrap:wrap;">
+      <div class="score-gauge-wrap">
+        <div class="score-gauge">
+          <svg viewBox="0 0 160 160">
+            <circle class="gauge-bg" cx="80" cy="80" r="65"/>
+            <circle class="gauge-fill" cx="80" cy="80" r="65"
+              stroke-dasharray="${circumference}"
+              stroke-dashoffset="${circumference}"
+              data-target-offset="${offset}"/>
+          </svg>
+          <div class="gauge-value">
+            <div class="gauge-num" data-target-score="${data.score}">0</div>
+            <div class="gauge-label">/ 100</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;">
+        <div style="margin-bottom:16px;">
+          <span class="recommend-tag ${data.recommend}">${data.recommendText}</span>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:16px;">
+          Action: <span style="color:var(--text)">${actionName}</span>
+        </div>
+        <div class="action-buttons">
+          <button class="btn-execute" onclick="showToast('Action 已提交执行队列')">▶ 执行 Action</button>
+          <button class="btn-plan" onclick="showToast('已加入执行计划')">📋 加入计划</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  html += '</div>';
+  resultArea.innerHTML = html;
+
+  // 触发动画：置信度条
+  setTimeout(() => {
+    document.querySelectorAll('.effect-bar-fill').forEach(bar => {
+      bar.style.width = bar.dataset.target + '%';
+    });
+  }, 100);
+
+  // 触发动画：仪表盘
+  setTimeout(() => {
+    const gaugeFill = document.querySelector('.gauge-fill');
+    if (gaugeFill) {
+      gaugeFill.style.strokeDashoffset = gaugeFill.dataset.targetOffset;
+    }
+    // 数字缓动
+    const scoreEl = document.querySelector('.gauge-num');
+    if (scoreEl) {
+      animateNumber(scoreEl, 0, parseInt(scoreEl.dataset.targetScore), 1500);
+    }
+  }, 400);
+
+  showToast(`推演完成: ${actionName}`);
+}
+
+// 数字缓动动画
+function animateNumber(el, from, to, duration) {
+  const start = performance.now();
+  function update(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    // easeOutCubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(from + (to - from) * eased);
+    el.textContent = current;
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+
+// ==================== 初始化 ====================
+// 页面加载完成后的初始化
+window.addEventListener('load', () => {
+  showToast('因果预测引擎已就绪');
+});
+</script>
+</body>
+</html>
