@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>帝国OS - 面板导航</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-card: rgba(15, 15, 25, 0.85);
+  --border-color: rgba(0, 255, 136, 0.15);
+  --green: #00ff88;
+  --blue: #00b4ff;
+  --yellow: #ffd93d;
+  --text-primary: #e0e0e0;
+  --text-secondary: #888;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+  --radius: 16px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.container {
+  max-width: 900px;
+  width: 100%;
+  text-align: center;
+}
+
+h1 {
+  font-family: var(--font-mono);
+  font-size: 3rem;
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, var(--green), var(--blue));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  margin-bottom: 50px;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.panel-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 30px 24px;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(20px);
+}
+
+.panel-card:hover {
+  border-color: var(--green);
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 255, 136, 0.15);
+}
+
+.panel-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+.panel-title {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  margin-bottom: 8px;
+  color: var(--green);
+}
+
+.panel-desc {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.panel-version {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--blue);
+  margin-top: 12px;
+  opacity: 0.7;
+}
+
+.footer {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 20px;
+}
+
+.footer span { color: var(--green); }
+
+/* 粒子背景 */
+#particles {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<canvas id="particles"></canvas>
+
+<div class="container">
+  <h1>🏛️ 帝国OS</h1>
+  <p class="subtitle">AI系统状态监控与决策支持平台</p>
+
+  <div class="panels">
+    <a href="trae/strategic-heartbeat.html" class="panel-card">
+      <div class="panel-icon">🧭</div>
+      <div class="panel-title">战略心跳系统</div>
+      <div class="panel-desc">定时健康监测、目标进度追踪、智能建议推送</div>
+      <div class="panel-version">v1.0</div>
+    </a>
+
+    <a href="trae/causal-engine.html" class="panel-card">
+      <div class="panel-icon">🧬</div>
+      <div class="panel-title">因果预测引擎</div>
+      <div class="panel-desc">因果图谱可视化、假设推演、行动预测评分</div>
+      <div class="panel-version">v0.1</div>
+    </a>
+
+    <a href="trae/os-monitor-panel.html" class="panel-card">
+      <div class="panel-icon">🎛️</div>
+      <div class="panel-title">系统监控面板</div>
+      <div class="panel-desc">实时状态监控、六层架构、资源仪表盘</div>
+      <div class="panel-version">v5.0</div>
+    </a>
+  </div>
+
+  <p class="footer">Powered by <span>帝国OS</span> | QClaw + Trae + SOLO</p>
+</div>
+
+<script>
+// 简单粒子背景
+const canvas = document.getElementById('particles');
+const ctx = canvas.getContext('2d');
+let particles = [];
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function init() {
+  resize();
+  particles = [];
+  for (let i = 0; i < 80; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 2 + 0.5,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      alpha: Math.random() * 0.5 + 0.2
+    });
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+    if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0, 255, 136, ${p.alpha})`;
+    ctx.fill();
+  });
+  requestAnimationFrame(draw);
+}
+
+window.addEventListener('resize', resize);
+init();
+draw();
+</script>
+</body>
+</html>
